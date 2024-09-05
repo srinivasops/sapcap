@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "capk.name" . }}
+  labels:
+    app: {{ include "capk.name" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "capk.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "capk.name" . }}
+    spec:
+      containers:
+        - name: {{ include "capk.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: 4004
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

@@ -7,6 +7,7 @@ appVersion: 1.0.0
 annotations:
   app.kubernetes.io/managed-by: cds-dk/helm
 dependencies:
-  - name: web-application
+  - name: capk
     alias: srv
     version: ">0.0.0"
+    repository: "file://charts/web-application" 

@@ -1,0 +1,6 @@
+dependencies:
+- name: web-application
+  repository: file://charts/web-application
+  version: 0.1.0
+digest: sha256:301a0fab7589790ceab532a817d1041e0a5a6f30d1d225c7339851e31985ad15
+generated: "2024-09-05T12:42:18.638258+05:30"
