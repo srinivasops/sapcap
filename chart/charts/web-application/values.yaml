@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: sriniv7654/cap
-  tag: "1"
+  tag: "3"
 
 
 

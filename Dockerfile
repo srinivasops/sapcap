@@ -1,5 +1,5 @@
 # Use a Node.js base image
-FROM node:slim
+FROM node:alpine
 
 # Install dependencies necessary for building native modules (if required)
 

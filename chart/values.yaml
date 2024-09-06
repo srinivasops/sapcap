@@ -3,14 +3,14 @@ global:
   imagePullSecret:
     name: docker-registry
   image:
-    registry: registry-name
+    registry: sriniv
     tag: latest
 srv:
   bindings:
     db:
       serviceInstanceName: hana
   image:
-    repository: sample-srv
+    repository: sriniv7654/cap
   resources:
     limits:
       ephemeral-storage: 1G
