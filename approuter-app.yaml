@@ -1,0 +1,238 @@
+---
+# Namespace Definition
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: testing
+
+---
+# Deployment for testing-orders-service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: testing-orders-service
+  namespace: testing
+  labels:
+    app: testing-orders-service
+    example: testing-orders-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: testing-orders-service
+      example: testing-orders-service
+  template:
+    metadata:
+      labels:
+        app: testing-orders-service
+        example: testing-orders-service
+    spec:
+      containers:
+        - name: testing-orders-service
+          image: "bhargavshah86/kube-test:v0.1"  # Updated image
+          imagePullPolicy: IfNotPresent
+          resources:
+            limits:
+              cpu: 20m
+              memory: 32Mi
+            requests:
+              cpu: 10m
+              memory: 16Mi
+          env:
+            - name: APP_PORT
+              value: "80"  # Updated APP_PORT
+            - name: APP_REDIS_PREFIX
+              value: "REDIS_"
+
+---
+# Service for testing-orders-service
+apiVersion: v1
+kind: Service
+metadata:
+  name: testing-orders-service
+  namespace: testing
+  labels:
+    app: testing-orders-service
+    example: testing-orders-service
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 80  # Updated targetPort
+  selector:
+    app: testing-orders-service
+    example: testing-orders-service
+
+---
+# APIRule for testing-my-approuter-orders
+apiVersion: gateway.kyma-project.io/v1beta1
+kind: APIRule
+metadata:
+  name: testing-my-approuter-orders
+  namespace: testing
+  labels:
+    app: testing-my-approuter-orders
+spec:
+  gateway: kyma-gateway.kyma-system.svc.cluster.local
+  host: testing-my-approuter-orders.b071566.kyma.ondemand.com
+  rules:
+    - path: /.*
+      methods: ["GET", "POST", "PUT", "DELETE"]
+      service:
+        name: testing-my-approuter-orders
+        port: 5000
+      accessStrategies:
+        - handler: allow
+
+---
+# ConfigMap for testing-destinations
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: testing-destinations
+  namespace: testing
+data:
+  destinations: >-
+    [
+        {
+          "name": "testing-orders-service",
+          "url": "http://testing-orders-service.testing.svc.cluster.local:80", 
+          "forwardAuthToken": true
+        }
+    ]
+
+---
+# ConfigMap for testing-xs-app (App Router Configuration)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: testing-xs-app
+  namespace: testing
+data:
+  xs-app.json: |-
+    {
+        "authenticationMethod": "route",
+        "sessionTimeout": 10,
+        "login" : {
+          "callbackEndpoint": "/sap/com/orders"
+        },
+        "routes": [
+            {
+                "source": "^/sap/com/orders/(.*)$",
+                "destination": "testing-orders-service",
+                "target": "$1",
+                "authenticationType": "xsuaa"
+            },
+            {
+                "source": "^/(.*)$",
+                "destination": "testing-orders-service",
+                "target": "$1",
+                "authenticationType": "xsuaa"
+            }
+        ]
+    }
+
+---
+# XSUAA ServiceInstance
+apiVersion: services.cloud.sap.com/v1
+kind: ServiceInstance
+metadata:
+  name: testing-xsuaa-order-service
+  namespace: testing
+spec:
+  serviceOfferingName: xsuaa
+  servicePlanName: application
+  parameters:
+    xsappname: testing-order-service-app
+    tenant-mode: dedicated
+    scopes:
+      - name: $XSAPPNAME.User
+        description: "User role"
+    role-templates:
+      - name: User
+        description: "Access the orders service via app router"
+        scope-references:
+          - $XSAPPNAME.User
+    role-collections:
+      - name: "testing-order-service-users"
+        description: "Access the orders service via app router"
+        role-template-references:
+          - $XSAPPNAME.User
+    oauth2-configuration:
+      redirect-uris:
+        - "https://testing-my-approuter-orders.b071566.kyma.ondemand.com/**"
+        - "http://localhost:5000/**"
+
+---
+# XSUAA ServiceBinding
+apiVersion: services.cloud.sap.com/v1
+kind: ServiceBinding
+metadata:
+  name: testing-xsuaa-binding-order-service
+  namespace: testing
+spec:
+  serviceInstanceName: testing-xsuaa-order-service
+
+---
+# Deployment for testing-my-approuter-orders
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: testing-my-approuter-orders
+  namespace: testing
+  labels:
+    app: testing-my-approuter-orders
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: testing-my-approuter-orders
+  template:
+    metadata:
+      labels:
+        app: testing-my-approuter-orders
+    spec:
+      containers:
+        - name: testing-my-approuter-orders
+          image: sapse/approuter:15.0.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
+          volumeMounts:
+            - name: testing-xs-app
+              mountPath: /app/xs-app.json
+              subPath: xs-app.json
+              readOnly: true
+            - name: testing-xsuaa-binding
+              mountPath: /etc/secrets/sapcp/xsuaa/xsuaa-binding
+              readOnly: true
+          env:
+            - name: destinations
+              valueFrom:
+                configMapKeyRef:
+                  name: testing-destinations
+                  key: destinations
+      volumes:
+        - name: testing-xs-app
+          configMap:
+            name: testing-xs-app
+        - name: testing-xsuaa-binding
+          secret:
+            secretName: testing-xsuaa-binding-order-service
+
+---
+# Service for testing-my-approuter-orders
+apiVersion: v1
+kind: Service
+metadata:
+  name: testing-my-approuter-orders
+  namespace: testing
+spec:
+  ports:
+    - port: 5000
+      protocol: TCP
+      targetPort: 5000
+  selector:
+    app: testing-my-approuter-orders
